@@ -1,0 +1,93 @@
+{
+  "realm": "eulogin",
+  "enabled": true,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "quarkus-app",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "secret",
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "directAccessGrantsEnabled": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["openid", "email", "profile"],
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "claim.name": "email",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "given_name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "claim.name": "given_name",
+            "user.attribute": "firstName",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "family_name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "claim.name": "family_name",
+            "user.attribute": "lastName",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "administrator" },
+      { "name": "editor" }
+    ]
+  },
+  "users": [
+    {
+      "username": "test1",
+      "enabled": true,
+      "email": "test1@ec.europa.eu",
+      "firstName": "Test",
+      "lastName": "Administrator",
+      "credentials": [{ "type": "password", "value": "test", "temporary": false }],
+      "realmRoles": ["administrator"]
+    },
+    {
+      "username": "editor1",
+      "enabled": true,
+      "email": "editor1@ec.europa.eu",
+      "firstName": "Test",
+      "lastName": "Editor",
+      "credentials": [{ "type": "password", "value": "test", "temporary": false }],
+      "realmRoles": ["editor"]
+    }
+  ]
+}

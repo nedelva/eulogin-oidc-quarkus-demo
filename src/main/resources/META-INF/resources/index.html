@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EU Login OIDC Demo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; line-height: 1.5; }
+        .banner { background: #003399; color: #fff; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+        .banner h1 { font-size: 1.25rem; font-weight: 600; }
+        .eu-flag { font-size: 1.5rem; }
+        .container { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+
+        .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #003399; }
+
+        /* Flow steps */
+        .flow { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+        .step { padding: .4rem .8rem; border-radius: 4px; font-size: .85rem; background: #e8eaf0; color: #555; }
+        .step.active { background: #003399; color: #fff; font-weight: 600; }
+        .step.done { background: #0a8f3c; color: #fff; }
+        .arrow { color: #999; }
+
+        /* User info */
+        .user-info { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; font-size: .95rem; }
+        .user-info dt { font-weight: 600; color: #555; }
+        .role-badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .8rem; font-weight: 600; margin-right: .25rem; }
+        .role-badge.administrator { background: #fde8e8; color: #b91c1c; }
+        .role-badge.editor { background: #e0f2fe; color: #0369a1; }
+
+        /* Endpoint tests */
+        .endpoint-row { display: flex; align-items: center; gap: .75rem; padding: .75rem 0; border-bottom: 1px solid #eee; }
+        .endpoint-row:last-child { border-bottom: none; }
+        .endpoint-path { font-family: monospace; font-size: .9rem; min-width: 180px; }
+        .endpoint-role { font-size: .8rem; color: #666; min-width: 100px; }
+        button { padding: .4rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 500; }
+        .btn-primary { background: #003399; color: #fff; }
+        .btn-primary:hover { background: #002266; }
+        .btn-danger { background: #b91c1c; color: #fff; }
+        .btn-danger:hover { background: #991b1b; }
+        .btn-test { background: #e8eaf0; color: #333; }
+        .btn-test:hover { background: #d0d3db; }
+        .result { font-family: monospace; font-size: .8rem; padding: .3rem .6rem; border-radius: 3px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .result.ok { background: #dcfce7; color: #166534; }
+        .result.forbidden { background: #fde8e8; color: #b91c1c; }
+        .result.error { background: #fef3c7; color: #92400e; }
+
+        .actions { display: flex; gap: .75rem; margin-top: 1rem; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="banner">
+    <span class="eu-flag" role="img" aria-label="EU flag">&#127466;&#127482;</span>
+    <h1>EU Login &ndash; OIDC Quarkus Demo</h1>
+</div>
+
+<div class="container">
+
+    <!-- Flow visualization -->
+    <div class="card">
+        <h2>Authorization Code Flow</h2>
+        <div class="flow" id="flow">
+            <span class="step" id="s1">1. User visits app</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step" id="s2">2. Redirect to EU Login</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step" id="s3">3. User authenticates</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step" id="s4">4. Callback with code</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step" id="s5">5. Token exchange (PKCE)</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step" id="s6">6. Session established</span>
+        </div>
+    </div>
+
+    <!-- Logged-out state -->
+    <div class="card" id="logged-out">
+        <h2>Not Authenticated</h2>
+        <p>Click the button below to start the Authorization Code flow. You will be redirected to the OIDC provider (Keycloak in dev, EU Login in production).</p>
+        <div class="actions">
+            <a href="/secure/ecas"><button class="btn-primary">Login with EU Login</button></a>
+        </div>
+    </div>
+
+    <!-- Logged-in state -->
+    <div class="card hidden" id="logged-in">
+        <h2>Authenticated User</h2>
+        <dl class="user-info">
+            <dt>Username (sub)</dt><dd id="u-name">-</dd>
+            <dt>Full name</dt><dd id="u-full">-</dd>
+            <dt>Email</dt><dd id="u-email">-</dd>
+            <dt>Roles</dt><dd id="u-roles">-</dd>
+        </dl>
+        <div class="actions">
+            <a href="/admin/logout"><button class="btn-danger">Logout</button></a>
+        </div>
+    </div>
+
+    <!-- Endpoint tester -->
+    <div class="card hidden" id="tester">
+        <h2>Role-Based Access Control</h2>
+        <p style="font-size:.9rem;color:#555;margin-bottom:.75rem;">
+            Test each endpoint to see how the server enforces roles. Expect 200 for allowed and 403 for denied.
+        </p>
+
+        <div class="endpoint-row">
+            <span class="endpoint-path">/hello</span>
+            <span class="endpoint-role">public</span>
+            <button class="btn-test" onclick="testEndpoint('/hello', this)">Test</button>
+            <span class="result" id="r-hello"></span>
+        </div>
+        <div class="endpoint-row">
+            <span class="endpoint-path">/rest/me</span>
+            <span class="endpoint-role">any user</span>
+            <button class="btn-test" onclick="testEndpoint('/rest/me', this)">Test</button>
+            <span class="result" id="r-me"></span>
+        </div>
+        <div class="endpoint-row">
+            <span class="endpoint-path">/api/protected</span>
+            <span class="endpoint-role">administrator</span>
+            <button class="btn-test" onclick="testEndpoint('/api/protected', this)">Test</button>
+            <span class="result" id="r-admin"></span>
+        </div>
+        <div class="endpoint-row">
+            <span class="endpoint-path">/api/protected/editor</span>
+            <span class="endpoint-role">editor</span>
+            <button class="btn-test" onclick="testEndpoint('/api/protected/editor', this)">Test</button>
+            <span class="result" id="r-editor"></span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const resultIds = {
+        '/hello': 'r-hello',
+        '/rest/me': 'r-me',
+        '/api/protected': 'r-admin',
+        '/api/protected/editor': 'r-editor'
+    };
+
+    async function checkAuth() {
+        try {
+            const res = await fetch('/rest/me');
+            if (!res.ok) throw new Error(res.status);
+            const user = await res.json();
+            if (!user || !user.username) throw new Error('anonymous');
+            showLoggedIn(user);
+        } catch {
+            showLoggedOut();
+        }
+    }
+
+    function showLoggedIn(user) {
+        document.getElementById('logged-out').classList.add('hidden');
+        document.getElementById('logged-in').classList.remove('hidden');
+        document.getElementById('tester').classList.remove('hidden');
+
+        document.getElementById('u-name').textContent = user.username;
+        document.getElementById('u-full').textContent = user.name || '(not provided)';
+        document.getElementById('u-email').textContent = user.emailAddress || '(not provided)';
+
+        const rolesEl = document.getElementById('u-roles');
+        rolesEl.innerHTML = '';
+        (user.roles || []).forEach(function(r) {
+            const badge = document.createElement('span');
+            badge.className = 'role-badge ' + r;
+            badge.textContent = r;
+            rolesEl.appendChild(badge);
+        });
+
+        // Mark flow steps as done
+        for (let i = 1; i <= 6; i++) document.getElementById('s' + i).classList.add('done');
+    }
+
+    function showLoggedOut() {
+        document.getElementById('logged-out').classList.remove('hidden');
+        document.getElementById('logged-in').classList.add('hidden');
+        document.getElementById('tester').classList.add('hidden');
+        document.getElementById('s1').classList.add('active');
+    }
+
+    async function testEndpoint(path, btn) {
+        const el = document.getElementById(resultIds[path]);
+        el.textContent = '...';
+        el.className = 'result';
+        try {
+            const res = await fetch(path);
+            if (res.ok) {
+                const body = await res.text();
+                el.textContent = res.status + ' OK';
+                el.className = 'result ok';
+                el.title = body;
+            } else if (res.status === 403) {
+                el.textContent = '403 Forbidden';
+                el.className = 'result forbidden';
+            } else {
+                el.textContent = res.status + ' ' + res.statusText;
+                el.className = 'result error';
+            }
+        } catch (e) {
+            el.textContent = 'Error: ' + e.message;
+            el.className = 'result error';
+        }
+    }
+
+    checkAuth();
+</script>
+
+</body>
+</html>

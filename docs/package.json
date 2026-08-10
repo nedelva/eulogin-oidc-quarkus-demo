@@ -1,0 +1,21 @@
+{
+  "scripts": {
+    "slides": "marp presentation.md -w --html"
+  },
+  "name": "docs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "keywords": [
+    "presentation",
+    "Quarkus",
+    "Spring Boot",
+    "slides"
+  ],
+  "author": "nedelva",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@marp-team/marp-cli": "^4.3.1"
+  }
+}
